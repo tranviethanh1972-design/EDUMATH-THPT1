@@ -24,28 +24,24 @@
   <!-- PDF.js CDN for client-side PDF text extraction -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
-  <script>
-    // Embedded Firebase Configuration
-    const __firebase_config = JSON.stringify({
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getFirestore, collection, getDocs, setDoc, doc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    const firebaseConfig = {
       apiKey: "AIzaSyBqPmqin5j3Xu1Sr2GxVWZnyZLET_Qo8a8",
       authDomain: "edumath--thpt-db.firebaseapp.com",
       projectId: "edumath--thpt-db",
       storageBucket: "edumath--thpt-db.firebasestorage.app",
       messagingSenderId: "776510891876",
       appId: "1:776510891876:web:d9be28b1438c818ebafc71"
-    });
-    const __app_id = "edumath-thpt-production";
-  </script>
-
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-    window.firebaseModules = {
-      initializeApp, getAuth, signInAnonymously, signInWithCustomToken,
-      getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, getDocs
     };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    window.db = db;
+    window.firebaseModules = { collection, getDocs, setDoc, doc, deleteDoc, onSnapshot };
   </script>
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans antialiased selection:bg-indigo-500 selection:text-white">
@@ -74,37 +70,7 @@
         <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
       </svg>
     );
-// Ví dụ hàm lưu đề thi lên Firestore
-const saveQuizToCloudNavigation = async (newQuiz) => {
-  try {
-    if (window.db && window.firebaseModules) {
-      const { doc, setDoc } = window.firebaseModules;
-      // Lưu vào collection 'quizzes' với ID của đề thi làm tên document
-      await setDoc(doc(window.db, "quizzes", newQuiz.id), newQuiz);
-      console.log("Đã lưu đề lên Cloud Firestore thành công!");
-    }
-  } catch (error) {
-    console.error("Lỗi khi lưu Firestore: ", error);
-  }
-};
-    // Ví dụ hàm tải danh sách đề thi từ Cloud
-const fetchQuizzesFromCloud = async () => {
-  try {
-    if (window.db && window.firebaseModules) {
-      const { collection, getDocs } = window.firebaseModules;
-      const querySnapshot = await getDocs(collection(window.db, "quizzes"));
-      const cloudQuizzes = [];
-      querySnapshot.forEach((doc) => {
-        cloudQuizzes.push(doc.data());
-      });
-      if (cloudQuizzes.length > 0) {
-        setQuizzes(cloudQuizzes); // Cập nhật vào state của React
-      }
-    }
-  } catch (error) {
-    console.error("Lỗi khi tải dữ liệu từ Firestore: ", error);
-  }
-};
+
     const Send = ({ className = "w-5 h-5" }) => (
       <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <line x1="22" y1="2" x2="11" y2="13"></line>
@@ -628,53 +594,40 @@ const fetchQuizzesFromCloud = async () => {
       useEffect(() => {
         const initFirebaseCloud = async () => {
           try {
-            if (!window.firebaseModules || typeof __firebase_config === 'undefined') return;
-            const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, getFirestore, collection, onSnapshot } = window.firebaseModules;
+            if (!window.db || !window.firebaseModules) return;
+            const { collection, getDocs, setDoc, doc, onSnapshot } = window.firebaseModules;
             
-            const firebaseConfig = JSON.parse(__firebase_config);
-            const app = initializeApp(firebaseConfig);
-            const auth = getAuth(app);
-            const db = getFirestore(app);
-
-            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-              await signInWithCustomToken(auth, __initial_auth_token);
-            } else {
-              await signInAnonymously(auth);
-            }
-
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-edumath-thpt';
-
-            // Sync Quizzes
-            const qRef = collection(db, 'artifacts', appId, 'public', 'data', 'quizzes');
-            onSnapshot(qRef, (snapshot) => {
+            // Sync Quizzes in real-time
+            const qCol = collection(window.db, 'quizzes');
+            onSnapshot(qCol, (snapshot) => {
               if (!snapshot.empty) {
                 const cloudQuizzes = [];
                 snapshot.forEach(docSnap => cloudQuizzes.push({ id: docSnap.id, ...docSnap.data() }));
                 if (cloudQuizzes.length > 0) setQuizzes(cloudQuizzes);
               } else {
                 INITIAL_QUIZZES.forEach(async (q) => {
-                  await window.firebaseModules.setDoc(window.firebaseModules.doc(db, 'artifacts', appId, 'public', 'data', 'quizzes', q.id), q);
+                  await setDoc(doc(window.db, 'quizzes', q.id), q);
                 });
               }
             }, (err) => console.log("Quiz sync err:", err));
 
-            // Sync Students
-            const sRef = collection(db, 'artifacts', appId, 'public', 'data', 'students');
-            onSnapshot(sRef, (snapshot) => {
+            // Sync Students in real-time
+            const sCol = collection(window.db, 'students');
+            onSnapshot(sCol, (snapshot) => {
               if (!snapshot.empty) {
                 const cloudStudents = [];
                 snapshot.forEach(docSnap => cloudStudents.push({ ...docSnap.data() }));
                 if (cloudStudents.length > 0) setRegisteredStudents(cloudStudents);
               } else {
                 INITIAL_STUDENTS.forEach(async (st) => {
-                  await window.firebaseModules.setDoc(window.firebaseModules.doc(db, 'artifacts', appId, 'public', 'data', 'students', st.phone), st);
+                  await setDoc(doc(window.db, 'students', st.phone), st);
                 });
               }
             }, (err) => console.log("Student sync err:", err));
 
-            // Sync History
-            const hRef = collection(db, 'artifacts', appId, 'public', 'data', 'history');
-            onSnapshot(hRef, (snapshot) => {
+            // Sync History in real-time
+            const hCol = collection(window.db, 'history');
+            onSnapshot(hCol, (snapshot) => {
               if (!snapshot.empty) {
                 const cloudHistory = [];
                 snapshot.forEach(docSnap => cloudHistory.push({ id: docSnap.id, ...docSnap.data() }));
@@ -684,7 +637,7 @@ const fetchQuizzesFromCloud = async () => {
 
             setIsFirebaseSynced(true);
           } catch (e) {
-            console.log("Firebase init fallback to local:", e);
+            console.log("Firebase sync fallback:", e);
           }
         };
 
@@ -693,22 +646,24 @@ const fetchQuizzesFromCloud = async () => {
 
       const saveToCloud = async (collectionName, docId, data) => {
         try {
-          if (window.firebaseModules && typeof __firebase_config !== 'undefined') {
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-edumath-thpt';
-            const db = window.firebaseModules.getFirestore();
-            await window.firebaseModules.setDoc(window.firebaseModules.doc(db, 'artifacts', appId, 'public', 'data', collectionName, docId), data, { merge: true });
+          if (window.db && window.firebaseModules) {
+            const { doc, setDoc } = window.firebaseModules;
+            await setDoc(doc(window.db, collectionName, docId), data, { merge: true });
           }
-        } catch (e) {}
+        } catch (e) {
+          console.log("Error saving to cloud:", e);
+        }
       };
 
       const deleteFromCloud = async (collectionName, docId) => {
         try {
-          if (window.firebaseModules && typeof __firebase_config !== 'undefined') {
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-edumath-thpt';
-            const db = window.firebaseModules.getFirestore();
-            await window.firebaseModules.deleteDoc(window.firebaseModules.doc(db, 'artifacts', appId, 'public', 'data', collectionName, docId));
+          if (window.db && window.firebaseModules) {
+            const { doc, deleteDoc } = window.firebaseModules;
+            await deleteDoc(doc(window.db, collectionName, docId));
           }
-        } catch (e) {}
+        } catch (e) {
+          console.log("Error deleting from cloud:", e);
+        }
       };
 
       useEffect(() => {
@@ -1457,8 +1412,8 @@ const fetchQuizzesFromCloud = async () => {
 
               <div className="bg-amber-50 p-3 rounded-xl border border-amber-200/70 text-[11px] text-amber-900 leading-relaxed">
                 🔑 <strong>Chỉ dành cho Giáo viên:</strong><br/>
-                • SĐT: <code className="font-mono bg-amber-100 px-1.5 py-0.5 rounded font-bold">0906481485</code><br/>
-                • Mật khẩu: <code className="font-mono bg-amber-100 px-1.5 py-0.5 rounded font-bold">13572468@</code>
+                • SĐT: <code className="font-mono bg-amber-100 px-1.5 py-0.5 rounded font-bold">************</code><br/>
+                • Mật khẩu: <code className="font-mono bg-amber-100 px-1.5 py-0.5 rounded font-bold">************</code>
               </div>
 
               <div className="flex items-center space-x-3 pt-2">
@@ -1572,7 +1527,7 @@ const fetchQuizzesFromCloud = async () => {
         document.body.appendChild(link);
         link.click();
         link.remove();
-        if (showToast) showToast('Đã xuất file danh sách học sinh (định dạng SĐT chuẩn Text) thành công!', 'success');
+        if (showToast) showToast('Đã xuất file danh sách học sinh thành công!', 'success');
       };
 
       const handleExportHistoryCSV = () => {
@@ -1949,7 +1904,7 @@ const fetchQuizzesFromCloud = async () => {
                     <button
                       onClick={handleExportStudentsCSV}
                       className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-sm transition-all flex items-center gap-1.5 shrink-0"
-                      title="Tải xuống danh sách tài khoản (SĐT và mật khẩu) dạng Excel/CSV"
+                      title="Tải xuống danh sách tài khoản dạng Excel/CSV"
                     >
                       <Download className="w-3.5 h-3.5" />
                       <span>Xuất DS (CSV)</span>
@@ -2326,13 +2281,6 @@ const fetchQuizzesFromCloud = async () => {
               <p className="text-indigo-200 text-sm mt-1">
                 Bạn đang truy cập bài tập của <strong>Khối Lớp {studentGrade}</strong>. Dưới đây là danh sách các đề thi trắc nghiệm.
               </p>
-
-              <div className="mt-3 flex items-center gap-2 flex-wrap">
-                <div className="bg-white/10 rounded-xl p-2.5 border border-white/10 text-xs text-indigo-100 flex items-center space-x-2 w-fit">
-                  <Database className="w-4 h-4 text-emerald-400" />
-                  <span>Tài khoản tự động lưu vĩnh viễn trên thiết bị này.</span>
-                </div>
-              </div>
             </div>
 
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-wrap">
@@ -2374,17 +2322,17 @@ const fetchQuizzesFromCloud = async () => {
                   className="flex items-center justify-center space-x-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold shadow-md transition-all animate-pulse"
                 >
                   <Award className="w-4 h-4" />
-                  <span>Nâng Cấp VIP</span>
+                  <span>Điều khoản Nâng Cấp</span>
                 </button>
               )}
 
               <button disabled
                 onClick={() => setShowSavedAccountModal(true)}
                 className="flex items-center justify-center space-x-1.5 bg-indigo-900/80 hover:bg-indigo-800 text-white px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all border border-indigo-400/30"
-                title="Danh sách các tài khoản lưu cục bộ"
+                title="Danh sách các tài khoản lưu"
               >
                 <Users className="w-4 h-4 text-blue-200" />
-                <span>Tài Khoản ĐK({registeredStudents ? registeredStudents.length : 0})</span>
+                <span>Tài Khoản MASTER({registeredStudents ? registeredStudents.length : 0})</span>
               </button>
 
               <button
@@ -2743,7 +2691,7 @@ const fetchQuizzesFromCloud = async () => {
                     <Award className="w-7 h-7 text-amber-600" />
                   </div>
                   <h3 className="text-xl font-bold text-slate-900">Nâng Cấp Tài Khoản VIP</h3>
-                  <p className="text-xs text-slate-500">Mở khóa toàn bộ đặc quyền học tập chỉ với 100.000đ/năm học!</p>
+                  <p className="text-xs text-slate-500">Mở khóa toàn bộ đặc quyền học tập chỉ với 100.000đ/năm học!(Tính đến 30/6/2027)</p>
                 </div>
 
                 <ul className="space-y-2 bg-amber-50 p-3.5 rounded-xl border border-amber-200 text-xs text-amber-900">
