@@ -1083,7 +1083,7 @@
         const target = updated.find(s => s.phone === phone);
         if (target) saveToCloud('students', phone, target);
         setCurrentStudent(prev => ({ ...prev, pendingVip: true }));
-        showToast('Đã gửi yêu cầu kích hoạt VIP lên Cloud! Vui lòng chờ duyệt.', 'success');
+        showToast('Đã gửi yêu cầu kích hoạt VIP lên Cloud! Vui lòng chờ giáo viên duyệt.', 'success');
       };
 
       const handleApproveVip = (phone) => {
@@ -1163,7 +1163,6 @@
                 }
             });
 
-            // Làm tròn và định dạng chuẩn (hỗ trợ điểm lẻ .25, .5, .75 hoặc .1 của Bộ)
             const rounded = Math.min(10, Math.round(totalScore * 100) / 100);
             scoreVal = rounded % 1 === 0 ? rounded.toFixed(1) : rounded.toString();
         } else {
@@ -1471,7 +1470,7 @@
                   <h4 className="font-bold text-base text-slate-900">Xác nhận xóa tài khoản</h4>
                 </div>
                 <p className="text-xs text-slate-600">
-                  Bạn có chắc chắn muốn xóa tài khoản học sinh SĐT <b>{confirmDeleteState.phone}</b> ({confirmDeleteState.name}) khỏi Cloud? Thao tác này không thể hoàn tác.
+                  Bạn có chắc chắn muốn xóa tài khoản học sinh SĐT <b>{confirmDeleteState.phone}</b> ({confirmDeleteState.name})? Thao tác này không thể hoàn tác.
                 </p>
                 <div className="flex justify-end space-x-2 pt-2">
                   <button
@@ -1754,7 +1753,7 @@
               <div className="bg-amber-50 p-3 rounded-xl border border-amber-200/70 text-[11px] text-amber-900 leading-relaxed">
                 🔑 <strong>Chỉ dành cho Giáo viên:</strong><br/>
                 • SĐT: <code className="font-mono bg-amber-100 px-1.5 py-0.5 rounded font-bold">****************</code><br/>
-                • Mật khẩu: <code className="font-mono bg-amber-100 px-1.5 py-0.5 rounded font-bold">****************</code>
+                • Mật khẩu: <code className="font-mono bg-amber-100 px-1.5 py-0.5 rounded font-bold">**************</code>
               </div>
 
               <div className="flex items-center space-x-3 pt-2">
@@ -2968,7 +2967,7 @@
                     <Award className="w-7 h-7 text-amber-600" />
                   </div>
                   <h3 className="text-xl font-bold text-slate-900">Nâng Cấp Tài Khoản VIP</h3>
-                  <p className="text-xs text-slate-500">Mở khóa toàn bộ đặc quyền học tập chỉ với 100.000đ/năm học!(Tính đến 30/6/2027)</p>
+                  <p className="text-xs text-slate-500">Mở khóa toàn bộ đặc quyền học tập chỉ với 100.000đ/năm học!(Tính đến hết 30/6/2027)</p>
                 </div>
 
                 <ul className="space-y-2 bg-amber-50 p-3.5 rounded-xl border border-amber-200 text-xs text-amber-900">
@@ -3268,6 +3267,7 @@
 
                         <SvgGraphViewer image={q.image} svg={q.svgGraph} bbt={q.bbt} />
 
+                        {}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           {(q.options || []).map((opt, oIdx) => {
                             const letter = String.fromCharCode(65 + oIdx);
@@ -3280,8 +3280,9 @@
                                 if (isOptCorrect) btnStyle = "bg-emerald-50 border-emerald-500 font-bold text-emerald-950 ring-1 ring-emerald-500";
                                 else if (isOptSelected && !isOptCorrect) btnStyle = "bg-rose-50 border-rose-400 text-rose-950";
                                 else btnStyle = "border-slate-200 opacity-60";
-                              } else if (isOptSelected) {
-                                btnStyle = "bg-slate-200 border-slate-400 text-slate-800 font-bold";
+                              } else {
+                                if (isOptSelected) btnStyle = "bg-slate-100 border-slate-400 text-slate-700 font-bold";
+                                else btnStyle = "border-slate-200 opacity-70";
                               }
                             } else if (isOptSelected) {
                               btnStyle = "bg-indigo-50 border-indigo-500 font-bold text-indigo-950 ring-2 ring-indigo-500/20";
@@ -3299,12 +3300,30 @@
                                   {letter}
                                 </span>
                                 <div className="flex-1 pt-0.5"><MathText text={opt} /></div>
-                                {quizSubmitted && isOptCorrect && currentStudent?.isPremium && <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />}
-                                {quizSubmitted && isOptSelected && !isOptCorrect && currentStudent?.isPremium && <XCircle className="w-5 h-5 text-rose-500 shrink-0" />}
+                                {quizSubmitted && currentStudent?.isPremium && isOptCorrect && <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />}
+                                {quizSubmitted && currentStudent?.isPremium && isOptSelected && !isOptCorrect && <XCircle className="w-5 h-5 text-rose-500 shrink-0" />}
                               </button>
                             );
                           })}
                         </div>
+
+                        {quizSubmitted && currentStudent?.isPremium && isWrongSelect && (
+                          <div className="pt-2">
+                            <button
+                              onClick={() => handleExplainWrongAnswer(q.question, selectedVal, q.correctAnswer, `p1_${idx}`)}
+                              disabled={isExplaining[`p1_${idx}`]}
+                              className="text-purple-700 hover:text-purple-900 text-xs font-bold flex items-center gap-1.5 transition-all"
+                            >
+                              <Bot className="w-4 h-4" />
+                              {isExplaining[`p1_${idx}`] ? 'Gia sư AI đang giải thích...' : 'Hỏi Gia Sư AI vì sao em chọn sai?'}
+                            </button>
+                            {aiExplanation[`p1_${idx}`] && (
+                              <div className="mt-2 p-3 bg-purple-50 border border-purple-200 rounded-xl text-purple-900 text-xs leading-relaxed">
+                                <MathText text={aiExplanation[`p1_${idx}`]} />
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -3327,6 +3346,7 @@
 
                       <SvgGraphViewer image={q.image} svg={q.svgGraph} bbt={q.bbt} />
 
+                      {}
                       <div className="space-y-2">
                         {(q.statements || []).map((stmt, sIdx) => {
                           const key = `p2_${idx}_${sIdx}`;
@@ -3342,7 +3362,7 @@
 
                               <div className="flex items-center space-x-3 shrink-0">
                                 <label className={`flex items-center space-x-1 px-4 py-2 rounded-xl border-2 cursor-pointer font-bold transition ${
-                                  ans === true ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                                  ans === true ? (quizSubmitted && !currentStudent?.isPremium ? 'bg-slate-200 text-slate-800 border-slate-300' : 'bg-emerald-600 text-white border-emerald-600 shadow-sm') : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
                                 }`}>
                                   <input
                                     type="radio"
@@ -3356,7 +3376,7 @@
                                 </label>
 
                                 <label className={`flex items-center space-x-1 px-4 py-2 rounded-xl border-2 cursor-pointer font-bold transition ${
-                                  ans === false ? 'bg-rose-600 text-white border-rose-600 shadow-sm' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                                  ans === false ? (quizSubmitted && !currentStudent?.isPremium ? 'bg-slate-200 text-slate-800 border-slate-300' : 'bg-rose-600 text-white border-rose-600 shadow-sm') : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
                                 }`}>
                                   <input
                                     type="radio"
@@ -3381,8 +3401,8 @@
                         })}
                       </div>
 
-                      {/* Hiển thị điểm đạt được của câu hỏi phần II sau khi nộp bài */}
-                      {quizSubmitted && (() => {
+                      {/* Hiển thị điểm đạt được của câu hỏi phần II sau khi nộp bài cho VIP */}
+                      {quizSubmitted && currentStudent?.isPremium && (() => {
                         let sCorrect = 0;
                         (q.statements || []).forEach((s, sIdx) => {
                           if (userAnswers[`p2_${idx}_${sIdx}`] === s.isTrue) sCorrect++;
@@ -3450,6 +3470,17 @@
                   })}
                 </div>
               </div>
+
+              {}
+              {quizSubmitted && !currentStudent?.isPremium && (
+                <div className="p-6 bg-slate-900 rounded-2xl text-center text-white space-y-3 mt-6 border border-slate-700 shadow-lg">
+                  <Lock className="w-10 h-10 text-amber-400 mx-auto" />
+                  <h3 className="font-bold text-base text-yellow-300">Khóa Xem Chi Tiết Đáp Án & Lời Giải</h3>
+                  <p className="text-xs text-slate-300 max-w-lg mx-auto">
+                    Tài khoản hiện tại là <b>Tài khoản Thường</b> (chỉ xem được tổng điểm thi). Vui lòng Nâng cấp tài khoản VIP để đối chiếu chi tiết từng câu đúng/sai, xem đáp án chuẩn và lời giải KaTeX.
+                  </p>
+                </div>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -3473,11 +3504,13 @@
                     {/* Show image/graph in single question mode as well */}
                     <SvgGraphViewer image={currentItem.data.image} svg={currentItem.data.svgGraph} bbt={currentItem.data.bbt} />
 
+                    {}
                     {currentItem.part === 1 && (() => {
                       const idx = currentItem.localIndex;
                       const q = currentItem.data;
                       const selectedVal = userAnswers[`p1_${idx}`];
                       const isCorrect = selectedVal === q.correctAnswer;
+                      const isWrongSelect = quizSubmitted && selectedVal && !isCorrect;
 
                       return (
                         <div className="space-y-4 flex-1">
@@ -3488,6 +3521,21 @@
                             {(q.options || []).map((opt, oIdx) => {
                               const letter = String.fromCharCode(65 + oIdx);
                               const isOptSelected = selectedVal === letter;
+                              const isOptCorrect = q.correctAnswer === letter;
+
+                              let btnStyle = "bg-white border-slate-200 hover:bg-slate-100";
+                              if (quizSubmitted) {
+                                if (currentStudent?.isPremium) {
+                                  if (isOptCorrect) btnStyle = "bg-emerald-50 border-emerald-500 font-bold text-emerald-950 ring-1 ring-emerald-500";
+                                  else if (isOptSelected && !isOptCorrect) btnStyle = "bg-rose-50 border-rose-400 text-rose-950";
+                                  else btnStyle = "border-slate-200 opacity-60";
+                                } else {
+                                  if (isOptSelected) btnStyle = "bg-slate-100 border-slate-400 text-slate-700 font-bold";
+                                  else btnStyle = "border-slate-200 opacity-70";
+                                }
+                              } else if (isOptSelected) {
+                                btnStyle = "bg-indigo-50 border-indigo-600 font-bold text-indigo-950 ring-2 ring-indigo-500/20";
+                              }
 
                               return (
                                 <button
@@ -3495,16 +3543,35 @@
                                   type="button"
                                   disabled={quizSubmitted}
                                   onClick={() => setUserAnswers(prev => ({...prev, [`p1_${idx}`]: letter}))}
-                                  className={`w-full p-4 rounded-xl border text-left text-sm transition-all flex items-start space-x-3 ${isOptSelected ? 'bg-indigo-50 border-indigo-600 font-bold text-indigo-950 ring-2 ring-indigo-500/20' : 'bg-white border-slate-200 hover:bg-slate-100'}`}
+                                  className={`w-full p-4 rounded-xl border text-left text-sm transition-all flex items-start space-x-3 ${btnStyle}`}
                                 >
                                   <span className={`w-7 h-7 rounded-full border text-sm font-bold flex items-center justify-center shrink-0 ${isOptSelected ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-300 text-slate-600 bg-slate-50'}`}>
                                     {letter}
                                   </span>
                                   <div className="flex-1 pt-0.5"><MathText text={opt} /></div>
+                                  {quizSubmitted && currentStudent?.isPremium && isOptCorrect && <CheckCircle className="w-6 h-6 text-emerald-600 shrink-0" />}
+                                  {quizSubmitted && currentStudent?.isPremium && isOptSelected && !isOptCorrect && <XCircle className="w-6 h-6 text-rose-500 shrink-0" />}
                                 </button>
                               );
                             })}
                           </div>
+                          {quizSubmitted && currentStudent?.isPremium && isWrongSelect && (
+                            <div className="pt-4">
+                              <button
+                                onClick={() => handleExplainWrongAnswer(q.question, selectedVal, q.correctAnswer, `p1_${idx}`)}
+                                disabled={isExplaining[`p1_${idx}`]}
+                                className="text-purple-700 hover:text-purple-900 text-sm font-bold flex items-center gap-1.5 transition-all"
+                              >
+                                <Bot className="w-5 h-5" />
+                                {isExplaining[`p1_${idx}`] ? 'Gia sư AI đang giải thích...' : 'Hỏi Gia Sư AI vì sao em chọn sai?'}
+                              </button>
+                              {aiExplanation[`p1_${idx}`] && (
+                                <div className="mt-3 p-4 bg-purple-50 border border-purple-200 rounded-xl text-purple-900 text-sm leading-relaxed">
+                                  <MathText text={aiExplanation[`p1_${idx}`]} />
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       );
                     })()}
@@ -3521,6 +3588,7 @@
                             {(q.statements || []).map((stmt, sIdx) => {
                               const key = `p2_${idx}_${sIdx}`;
                               const ans = userAnswers[key];
+                              const isCorrect = ans === stmt.isTrue;
 
                               return (
                                 <div key={sIdx} className="p-4 bg-white border border-slate-200 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-4 text-sm">
@@ -3531,18 +3599,25 @@
 
                                   <div className="flex items-center space-x-3 shrink-0">
                                     <label className={`flex items-center space-x-1 px-5 py-2.5 rounded-xl border-2 cursor-pointer font-bold transition ${
-                                      ans === true ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                                      ans === true ? (quizSubmitted && !currentStudent?.isPremium ? 'bg-slate-200 text-slate-800 border-slate-300' : 'bg-emerald-600 text-white border-emerald-600 shadow-sm') : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
                                     }`}>
                                       <input type="radio" name={key} disabled={quizSubmitted} checked={ans === true} onChange={() => setUserAnswers(prev => ({...prev, [key]: true}))} className="hidden" />
                                       <span>Đúng</span>
                                     </label>
 
                                     <label className={`flex items-center space-x-1 px-5 py-2.5 rounded-xl border-2 cursor-pointer font-bold transition ${
-                                      ans === false ? 'bg-rose-600 text-white border-rose-600 shadow-sm' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                                      ans === false ? (quizSubmitted && !currentStudent?.isPremium ? 'bg-slate-200 text-slate-800 border-slate-300' : 'bg-rose-600 text-white border-rose-600 shadow-sm') : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
                                     }`}>
                                       <input type="radio" name={key} disabled={quizSubmitted} checked={ans === false} onChange={() => setUserAnswers(prev => ({...prev, [key]: false}))} className="hidden" />
                                       <span>Sai</span>
                                     </label>
+
+                                    {quizSubmitted && currentStudent?.isPremium && (
+                                      <span className={`font-bold px-3 py-2 rounded-lg text-xs uppercase tracking-wide flex items-center gap-1.5 ${stmt.isTrue ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                                        {isCorrect ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+                                        Đáp án: {stmt.isTrue ? 'Đúng' : 'Sai'}
+                                      </span>
+                                    )}
                                   </div>
                                 </div>
                               );
@@ -3557,6 +3632,10 @@
                       const q = currentItem.data;
                       const key = `p3_${idx}`;
                       const ans = userAnswers[key] || '';
+                      const isCorrect = quizSubmitted && (
+                        String(ans).trim().replace(',', '.') === String(q.correctAnswer).trim().replace(',', '.') ||
+                        parseFloat(String(ans).replace(',', '.')) === parseFloat(String(q.correctAnswer).replace(',', '.'))
+                      );
 
                       return (
                         <div className="space-y-6 flex-1">
@@ -3565,17 +3644,36 @@
                           </div>
                           <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                             <input
-                              type="number"
+                              type="text"
                               disabled={quizSubmitted}
                               placeholder="Nhập đáp số..."
                               value={ans}
                               onChange={(e) => setUserAnswers(prev => ({...prev, [key]: e.target.value}))}
-                              className="w-full sm:w-72 bg-slate-50 border-2 border-slate-300 rounded-xl px-5 py-4 text-base font-bold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 shadow-inner"
+                              className="w-full sm:w-72 bg-slate-50 border-2 border-slate-300 rounded-xl px-5 py-4 text-base font-bold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 shadow-inner font-mono"
                             />
+                            {quizSubmitted && currentStudent?.isPremium && (
+                              <div className="flex items-center space-x-2">
+                                <span className={`text-sm font-bold px-5 py-4 rounded-xl flex items-center gap-2 ${isCorrect ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                                  {isCorrect ? (
+                                    <><CheckCircle className="w-6 h-6" /> <span>Chính xác (+1.0đ)</span></>
+                                  ) : (
+                                    <><XCircle className="w-6 h-6" /> <span>Sai • Đáp án đúng: {q.correctAnswer}</span></>
+                                  )}
+                                </span>
+                              </div>
+                            )}
                           </div>
                         </div>
                       );
                     })()}
+
+                    {quizSubmitted && !currentStudent?.isPremium && (
+                      <div className="mt-6 p-5 bg-slate-900 rounded-2xl text-center text-white space-y-2 border border-slate-700 shadow-md">
+                        <Lock className="w-8 h-8 text-amber-400 mx-auto" />
+                        <h3 className="font-bold text-sm text-yellow-300">Khóa Xem Chi Tiết Đáp Án & Lời Giải</h3>
+                        <p className="text-xs text-slate-300">Tài khoản Thường chỉ xem được tổng điểm số. Vui lòng Nâng cấp VIP để mở khóa xem đúng/sai và lời giải chi tiết.</p>
+                      </div>
+                    )}
 
                     <div className="pt-6 mt-4 border-t border-slate-100 flex items-center justify-between">
                       <button
@@ -3613,6 +3711,7 @@
                   Sơ Đồ Câu Hỏi ({flatQuestions.length})
                 </h4>
 
+                {}
                 <div className="max-h-[55vh] overflow-y-auto pr-1 space-y-5">
                   {[1, 2, 3].map(partNum => {
                     const partItems = flatQuestions.filter(item => item.part === partNum);
@@ -3629,13 +3728,25 @@
                             const isAnswered = isQuestionAnswered(item);
                             const isCurrent = globalIdx === currentQIndex;
 
+                            let btnBg = "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200";
+                            if (quizSubmitted) {
+                              if (currentStudent?.isPremium) {
+                                btnBg = isQuestionCorrect(item)
+                                  ? "bg-emerald-500 text-white border-emerald-600"
+                                  : "bg-rose-500 text-white border-rose-600";
+                              } else if (isAnswered) {
+                                btnBg = "bg-slate-400 text-white border-slate-500";
+                              }
+                            } else if (isAnswered) {
+                              btnBg = "bg-indigo-600 text-white font-bold border-indigo-700";
+                            }
+
                             return (
                               <button
                                 key={globalIdx}
                                 onClick={() => setCurrentQIndex(globalIdx)}
-                                className={`h-10 rounded-lg font-bold text-xs transition-all flex items-center justify-center border shadow-sm ${
-                                  isAnswered ? 'bg-indigo-600 text-white border-indigo-700' : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
-                                } ${isCurrent ? 'ring-2 ring-offset-2 ring-indigo-500 scale-105' : ''}`}
+                                className={`h-10 rounded-lg font-bold text-xs transition-all flex items-center justify-center border shadow-sm ${btnBg} ${isCurrent ? 'ring-2 ring-offset-2 ring-indigo-500 scale-105' : ''}`}
+                                title={`Phần ${partNum} - Câu ${item.localIndex + 1}`}
                               >
                                 {item.localIndex + 1}
                               </button>
@@ -3646,6 +3757,13 @@
                     );
                   })}
                 </div>
+
+                {quizSubmitted && currentStudent?.isPremium && (
+                  <div className="pt-3 border-t border-slate-100 text-[11px] space-y-1.5 text-slate-600 font-semibold">
+                    <div className="flex items-center gap-1.5"><span className="w-3.5 h-3.5 bg-emerald-500 rounded-sm"></span> Câu làm đúng</div>
+                    <div className="flex items-center gap-1.5"><span className="w-3.5 h-3.5 bg-rose-500 rounded-sm"></span> Câu làm sai / chưa đủ ý</div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -3770,6 +3888,27 @@
             </div>
           </div>
 
+          {quizSubmitted && scoreResult && (
+            <div className="bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-2xl p-6 shadow-md flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="flex items-center space-x-4">
+                <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-md shrink-0">
+                  <Award className="w-10 h-10 text-yellow-300" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold">Kết Quả Bài Làm Của Bạn</h3>
+                  <p className="text-xs text-emerald-100 mt-1">
+                    Số câu đúng: <strong>{scoreResult.correctCount} / {scoreResult.totalQuestions} câu</strong>
+                  </p>
+                </div>
+              </div>
+
+              <div className="text-center md:text-right bg-white/10 p-3 px-6 rounded-2xl border border-white/20">
+                <span className="text-xs font-medium uppercase tracking-wider text-emerald-100 block">Điểm Số</span>
+                <span className="text-3xl font-extrabold text-yellow-300">{scoreResult.score} / 10</span>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
             <div className="lg:col-span-3 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6 flex flex-col justify-between">
               <div>
@@ -3809,16 +3948,40 @@
                   <SvgGraphViewer image={currentQ.image} />
                 )}
 
+                {}
                 <div className="space-y-3 mt-2">
                   {currentQ.options.map((optionText, optIdx) => {
                     const isSelected = userAnswers[currentQ.id] === optIdx;
+                    const isCorrect = currentQ.correct === optIdx;
+
+                    let stateStyle = "border-slate-200 hover:border-indigo-300 hover:bg-slate-50";
+
+                    if (quizSubmitted) {
+                      if (currentStudent?.isPremium) {
+                        if (isCorrect) {
+                          stateStyle = "bg-emerald-50 border-emerald-500 text-emerald-900 font-semibold ring-1 ring-emerald-500";
+                        } else if (isSelected && !isCorrect) {
+                          stateStyle = "bg-rose-50 border-rose-400 text-rose-900";
+                        } else {
+                          stateStyle = "border-slate-200 opacity-60";
+                        }
+                      } else {
+                        if (isSelected) {
+                          stateStyle = "bg-slate-100 border-slate-400 text-slate-700 font-semibold";
+                        } else {
+                          stateStyle = "border-slate-200 opacity-70";
+                        }
+                      }
+                    } else if (isSelected) {
+                      stateStyle = "bg-indigo-50 border-indigo-600 text-indigo-950 font-semibold ring-2 ring-indigo-500/20";
+                    }
 
                     return (
                       <button
                         key={optIdx}
                         onClick={() => selectAnswer(currentQ.id, optIdx)}
                         disabled={quizSubmitted}
-                        className={`w-full p-4 rounded-xl border text-left text-sm transition-all flex items-start space-x-3 ${isSelected ? 'bg-indigo-50 border-indigo-600 text-indigo-950 font-semibold ring-2 ring-indigo-500/20' : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50'}`}
+                        className={`w-full p-4 rounded-xl border text-left text-sm transition-all flex items-start space-x-3 ${stateStyle}`}
                       >
                         <span className={`w-6 h-6 rounded-full border text-xs font-bold flex items-center justify-center shrink-0 ${
                           isSelected 
@@ -3831,6 +3994,13 @@
                         <div className="flex-1 pt-0.5">
                           <MathText text={optionText} />
                         </div>
+
+                        {quizSubmitted && currentStudent?.isPremium && isCorrect && (
+                          <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />
+                        )}
+                        {quizSubmitted && currentStudent?.isPremium && isSelected && !isCorrect && (
+                          <XCircle className="w-5 h-5 text-rose-500 shrink-0" />
+                        )}
                       </button>
                     );
                   })}
@@ -3856,6 +4026,14 @@
                     <div className="text-slate-800 leading-relaxed pl-2">
                       <MathText text={currentQ.explanation || 'Không có giải thích.'} />
                     </div>
+                  </div>
+                )}
+                
+                {quizSubmitted && !currentStudent?.isPremium && (
+                  <div className="mt-6 p-5 bg-slate-900 rounded-2xl text-center text-white space-y-2 border border-slate-700 shadow-md">
+                    <Lock className="w-8 h-8 text-amber-400 mx-auto" />
+                    <h4 className="font-bold text-sm text-yellow-300">Khóa Xem Chi Tiết Đáp Án & Lời Giải</h4>
+                    <p className="text-xs text-slate-300">Tài khoản Thường chỉ xem được điểm số tổng kết. Vui lòng nâng cấp VIP để đối chiếu đáp án câu đúng/sai và xem lời giải chi tiết.</p>
                   </div>
                 )}
               </div>
@@ -3887,6 +4065,7 @@
               </div>
             </div>
 
+            {}
             <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-5 h-fit">
               <h4 className="font-bold text-slate-800 text-sm pb-2 border-b border-slate-100">
                 Sơ Đồ Câu Hỏi ({quiz.questions.length})
@@ -3899,7 +4078,17 @@
                   const isCurrent = idx === currentQIndex;
 
                   let btnBg = "bg-slate-100 text-slate-700 border-slate-200";
-                  if (isAnswered) btnBg = "bg-indigo-600 text-white font-bold";
+
+                  if (quizSubmitted) {
+                    const isCorrect = userAnswers[q.id] === q.correct;
+                    if (currentStudent?.isPremium) {
+                      btnBg = isCorrect ? "bg-emerald-500 text-white" : "bg-rose-500 text-white";
+                    } else if (isAnswered) {
+                      btnBg = "bg-slate-400 text-white";
+                    }
+                  } else if (isAnswered) {
+                    btnBg = "bg-indigo-600 text-white font-bold";
+                  }
 
                   return (
                     <button
@@ -3917,6 +4106,24 @@
                   );
                 })}
               </div>
+
+              {quizSubmitted && currentStudent?.isPremium ? (
+                <div className="space-y-1.5 pt-3 border-t border-slate-100 text-[11px] text-slate-600 font-semibold">
+                  <div className="flex items-center gap-1.5"><span className="w-3 h-3 bg-emerald-500 rounded-sm"></span> Làm đúng</div>
+                  <div className="flex items-center gap-1.5"><span className="w-3 h-3 bg-rose-500 rounded-sm"></span> Làm sai</div>
+                </div>
+              ) : (
+                <div className="space-y-2 pt-3 border-t border-slate-100 text-[11px] text-slate-500">
+                  <div className="flex items-center space-x-2">
+                    <span className="w-3 h-3 bg-indigo-600 rounded-sm" />
+                    <span>Đã chọn đáp án</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="w-3 h-3 bg-slate-100 border border-slate-300 rounded-sm" />
+                    <span>Chưa làm</span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
