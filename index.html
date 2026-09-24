@@ -323,6 +323,20 @@
       </svg>
     );
 
+    const Eye = ({ className = "w-5 h-5" }) => (
+      <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+        <circle cx="12" cy="12" r="3" />
+      </svg>
+    );
+
+    const EyeOff = ({ className = "w-5 h-5" }) => (
+      <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+        <line x1="1" y1="1" x2="23" y2="23" />
+      </svg>
+    );
+
     const callGeminiAPI = async (payload, retries = 3) => {
       const apiKey = "";
       const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
@@ -1752,8 +1766,8 @@
 
               <div className="bg-amber-50 p-3 rounded-xl border border-amber-200/70 text-[11px] text-amber-900 leading-relaxed">
                 🔑 <strong>Chỉ dành cho Giáo viên:</strong><br/>
-                • SĐT: <code className="font-mono bg-amber-100 px-1.5 py-0.5 rounded font-bold">****************</code><br/>
-                • Mật khẩu: <code className="font-mono bg-amber-100 px-1.5 py-0.5 rounded font-bold">**************</code>
+                • SĐT: <code className="font-mono bg-amber-100 px-1.5 py-0.5 rounded font-bold">**************</code><br/>
+                • Mật khẩu: <code className="font-mono bg-amber-100 px-1.5 py-0.5 rounded font-bold">***********</code>
               </div>
 
               <div className="flex items-center space-x-3 pt-2">
@@ -2967,7 +2981,7 @@
                     <Award className="w-7 h-7 text-amber-600" />
                   </div>
                   <h3 className="text-xl font-bold text-slate-900">Nâng Cấp Tài Khoản VIP</h3>
-                  <p className="text-xs text-slate-500">Mở khóa toàn bộ đặc quyền học tập chỉ với 100.000đ/năm học!(Tính đến hết 30/6/2027)</p>
+                  <p className="text-xs text-slate-500">Mở khóa toàn bộ đặc quyền học tập chỉ với 100.000đ/năm học!/(Tính đến 30/6/2027)</p>
                 </div>
 
                 <ul className="space-y-2 bg-amber-50 p-3.5 rounded-xl border border-amber-200 text-xs text-amber-900">
@@ -3085,6 +3099,7 @@
       const [isExplaining, setIsExplaining] = useState({});
       const [viewMode, setViewMode] = useState('single');
       const [currentQIndex, setCurrentQIndex] = useState(0);
+      const [showTitle, setShowTitle] = useState(true);
 
       const flatQuestions = useMemo(() => {
         const flat = [];
@@ -3149,8 +3164,8 @@
 
       return (
         <div className="space-y-6 max-w-5xl mx-auto pb-12">
-          <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex items-center justify-between sticky top-20 z-30">
-            <div className="flex items-center space-x-3">
+          <div className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-4 shadow-sm flex items-center justify-between sticky top-20 z-30 transition-all">
+            <div className="flex items-center space-x-2 sm:space-x-3">
               <button
                 onClick={exitQuiz}
                 className="p-2 text-slate-500 hover:bg-slate-100 rounded-xl transition-all"
@@ -3158,28 +3173,26 @@
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
-              <div>
-                <h2 className="font-bold text-slate-900 text-sm md:text-base">{quiz.title}</h2>
-                <p className="text-xs text-slate-500">Khối {quiz.grade} • Cấu trúc 2025 (3 Phần)</p>
-              </div>
-            </div>
 
-            <div className="flex items-center space-x-3">
               <button
-                onClick={() => {
-                  if (currentStudent?.isPremium) {
-                    window.print();
-                  } else {
-                    if (showToast) showToast('Tính năng Tải/In file PDF đề thi chỉ dành cho tài khoản VIP!', 'info');
-                  }
-                }}
-                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs md:text-sm font-bold border transition-all ${currentStudent?.isPremium ? 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100' : 'bg-slate-100 text-slate-400 border-slate-200'}`}
-                title="Tải PDF Đề Thi"
+                type="button"
+                onClick={() => setShowTitle(prev => !prev)}
+                className="flex items-center space-x-1.5 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition"
+                title={showTitle ? "Ẩn tiêu đề" : "Hiện tiêu đề"}
               >
-                {currentStudent?.isPremium ? <Download className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
-                <span className="hidden sm:inline">Xuất PDF</span>
+                {showTitle ? <EyeOff className="w-4 h-4 text-slate-600" /> : <Eye className="w-4 h-4 text-indigo-600" />}
+                <span className="hidden sm:inline">{showTitle ? "Ẩn tiêu đề" : "Hiện tiêu đề"}</span>
               </button>
 
+              {showTitle && (
+                <div className="transition-all">
+                  <h2 className="font-bold text-slate-900 text-sm md:text-base leading-tight">{quiz.title}</h2>
+                  <p className="text-xs text-slate-500">Khối {quiz.grade} • Cấu trúc 2025 (3 Phần)</p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center space-x-2 sm:space-x-3">
               {!quizSubmitted ? (
                 <div className={`flex items-center space-x-2 px-3 py-1.5 rounded-xl border text-xs md:text-sm font-bold ${
                   timeLeft < 180 ? 'bg-rose-50 text-rose-600 border-rose-200 animate-pulse' : 'bg-indigo-50 text-indigo-700 border-indigo-200'
@@ -3196,9 +3209,10 @@
               {!quizSubmitted && (
                 <button
                   onClick={() => handleFinishQuiz(false)}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md transition-all"
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs md:text-sm font-bold shadow-md transition-all flex items-center gap-1.5"
                 >
-                  Nộp Bài
+                  <Send className="w-3.5 h-3.5" />
+                  <span>Nộp Bài</span>
                 </button>
               )}
             </div>
@@ -3789,6 +3803,7 @@
       const currentQ = quiz.questions[currentQIndex];
 
       const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+      const [showTitle, setShowTitle] = useState(true);
       const audioRef = useRef(null);
 
       const formatTime = (seconds) => {
@@ -3832,8 +3847,8 @@
         <div className="space-y-6">
           <audio ref={audioRef} onEnded={() => setIsPlayingAudio(false)} className="hidden" />
 
-          <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex flex-wrap items-center justify-between gap-4 sticky top-20 z-30">
-            <div className="flex items-center space-x-3">
+          <div className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-4 shadow-sm flex items-center justify-between gap-3 sticky top-20 z-30 transition-all">
+            <div className="flex items-center space-x-2 sm:space-x-3">
               <button
                 onClick={exitQuiz}
                 className="p-2 text-slate-500 hover:bg-slate-100 rounded-xl transition-all"
@@ -3841,30 +3856,28 @@
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
-              <div>
-                <h2 className="font-bold text-slate-900 text-base">{quiz.title}</h2>
-                <p className="text-xs text-slate-500">Khối {quiz.grade} • {quiz.questions.length} câu hỏi</p>
-              </div>
-            </div>
 
-            <div className="flex items-center space-x-3">
               <button
-                onClick={() => {
-                  if (currentStudent?.isPremium) {
-                    window.print();
-                  } else {
-                    if (showToast) showToast('Tính năng Tải/In file PDF đề thi chỉ dành cho tài khoản VIP!', 'info');
-                  }
-                }}
-                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs md:text-sm font-bold border transition-all ${currentStudent?.isPremium ? 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100' : 'bg-slate-100 text-slate-400 border-slate-200'}`}
-                title="Tải PDF Đề Thi"
+                type="button"
+                onClick={() => setShowTitle(prev => !prev)}
+                className="flex items-center space-x-1.5 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition"
+                title={showTitle ? "Ẩn tiêu đề" : "Hiện tiêu đề"}
               >
-                {currentStudent?.isPremium ? <Download className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
-                <span className="hidden sm:inline">Xuất PDF</span>
+                {showTitle ? <EyeOff className="w-4 h-4 text-slate-600" /> : <Eye className="w-4 h-4 text-indigo-600" />}
+                <span className="hidden sm:inline">{showTitle ? "Ẩn tiêu đề" : "Hiện tiêu đề"}</span>
               </button>
 
+              {showTitle && (
+                <div className="transition-all">
+                  <h2 className="font-bold text-slate-900 text-sm md:text-base leading-tight">{quiz.title}</h2>
+                  <p className="text-xs text-slate-500">Khối {quiz.grade} • {quiz.questions.length} câu hỏi</p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center space-x-2 sm:space-x-3">
               {!quizSubmitted ? (
-                <div className={`flex items-center space-x-2 px-3 py-1.5 rounded-xl border text-sm font-bold ${
+                <div className={`flex items-center space-x-2 px-3 py-1.5 rounded-xl border text-xs md:text-sm font-bold ${
                   timeLeft < 180 ? 'bg-rose-50 text-rose-600 border-rose-200 animate-pulse' : 'bg-indigo-50 text-indigo-700 border-indigo-200'
                 }`}>
                   <Clock className="w-4 h-4" />
@@ -3880,9 +3893,10 @@
               {!quizSubmitted && (
                 <button
                   onClick={() => handleFinishQuiz(false)}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md transition-all"
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs md:text-sm font-bold shadow-md transition-all flex items-center gap-1.5"
                 >
-                  Nộp Bài
+                  <Send className="w-3.5 h-3.5" />
+                  <span>Nộp Bài</span>
                 </button>
               )}
             </div>
