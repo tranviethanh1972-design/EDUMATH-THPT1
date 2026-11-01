@@ -1118,6 +1118,7 @@
     const INITIAL_HISTORY = [
       {
         id: 'sub-1',
+        studentPhone: '0901234567',
         studentName: 'Trần Viết Huy Khang',
         grade: '12',
         quizTitle: 'ĐỀ THI ÔN TẬP TOÁN THPT 2025 (Cấu Trúc Mới)',
@@ -1143,9 +1144,11 @@
       quiz.examCode = examCode;
 
       if (quiz.isCTM2025) {
-        // ... existing code for CTM2025 ...
+        // TRÍCH XUẤT ĐỀ CTM CHUẨN 3 PHẦN:
+        // Phần I: Trích đúng 10 câu (0.5đ/câu = tối đa 5.0đ)
         if (quiz.part1 && quiz.part1.length > 0) {
-          quiz.part1 = shuffleArray(quiz.part1).map((q) => {
+          const targetP1 = Math.min(10, quiz.part1.length);
+          quiz.part1 = shuffleArray(quiz.part1).slice(0, targetP1).map((q) => {
             const correctChar = q.correctAnswer || 'A';
             const originalCorrectIdx = correctChar.charCodeAt(0) - 65;
             const correctText = q.options && q.options[originalCorrectIdx] !== undefined 
@@ -1164,8 +1167,10 @@
           });
         }
 
+        // Phần II: Trích đúng 2 câu (mỗi câu tối đa 1.0đ: 0.1; 0.25; 0.5; 1.0 = tối đa 2.0đ)
         if (quiz.part2 && quiz.part2.length > 0) {
-          quiz.part2 = shuffleArray(quiz.part2).map((q) => {
+          const targetP2 = Math.min(2, quiz.part2.length);
+          quiz.part2 = shuffleArray(quiz.part2).slice(0, targetP2).map((q) => {
             const shouldKeepThisQuestionStatements = Boolean(q.keepStatements);
             
             if (shouldKeepThisQuestionStatements) {
@@ -1189,8 +1194,10 @@
           });
         }
 
+        // Phần III: Trích đúng 3 câu (1.0đ/câu = tối đa 3.0đ)
         if (quiz.part3 && quiz.part3.length > 0) {
-          quiz.part3 = shuffleArray(quiz.part3);
+          const targetP3 = Math.min(3, quiz.part3.length);
+          quiz.part3 = shuffleArray(quiz.part3).slice(0, targetP3);
         }
       } else {
         // XÁO ĐỀ THƯỜNG: Trích xuất đúng 20 câu TỪ CHÍNH ĐỀ TƯƠNG ỨNG ĐƯỢC CHỌN
@@ -1299,6 +1306,11 @@
       const [confirmDeleteState, setConfirmDeleteState] = useState(null);
       const [isFirebaseSynced, setIsFirebaseSynced] = useState(false);
 
+      // Thêm state xác nhận xóa lịch sử bài làm bằng mật khẩu
+      const [deleteHistoryItem, setDeleteHistoryItem] = useState(null);
+      const [deletePasswordInput, setDeletePasswordInput] = useState('');
+      const [deletePasswordError, setDeletePasswordError] = useState('');
+
       const saveToCloud = async (collectionName, docId, data) => {
         try {
           if (window.db && window.firebaseModules) {
@@ -1368,6 +1380,12 @@
                 const cloudHistory = [];
                 snapshot.forEach(docSnap => cloudHistory.push({ id: docSnap.id, ...docSnap.data() }));
                 if (cloudHistory.length > 0) {
+                  // Sắp xếp bài thi mới nhất lên đầu danh sách
+                  cloudHistory.sort((a, b) => {
+                    const timeA = a.timestamp || (a.id ? parseInt(a.id.replace('sub-', '')) : 0) || 0;
+                    const timeB = b.timestamp || (b.id ? parseInt(b.id.replace('sub-', '')) : 0) || 0;
+                    return timeB - timeA;
+                  });
                   setSubmissionHistory(cloudHistory);
                   saveToStorage('edumath_history', cloudHistory);
                 }
@@ -1521,6 +1539,26 @@
         showToast('Đã đăng xuất khỏi tài khoản học sinh.', 'info');
       };
 
+      // Xử lý xác nhận xóa lịch sử bài thi của học sinh kèm xác thực mật khẩu
+      const handleConfirmDeleteHistory = (e) => {
+        e.preventDefault();
+        if (!deleteHistoryItem || !currentStudent) return;
+
+        if (deletePasswordInput.trim() !== currentStudent.password) {
+          setDeletePasswordError('Mật khẩu không chính xác! Vui lòng nhập đúng mật khẩu tài khoản.');
+          return;
+        }
+
+        const idToDelete = deleteHistoryItem.id;
+        setSubmissionHistory(prev => prev.filter(h => h.id !== idToDelete));
+        deleteFromCloud('history', idToDelete);
+
+        showToast('Đã xóa bài làm và cập nhật lại điểm số trung bình!', 'success');
+        setDeleteHistoryItem(null);
+        setDeletePasswordInput('');
+        setDeletePasswordError('');
+      };
+
       const handleRequestVip = (phone) => {
         const updated = registeredStudents.map(s => s.phone === phone ? { ...s, pendingVip: true } : s);
         setRegisteredStudents(updated);
@@ -1630,9 +1668,11 @@
         setStudentScoreResult(resultObj);
         setQuizSubmitted(true);
 
-        const newRecordId = 'sub-' + Date.now();
+        const now = Date.now();
+        const newRecordId = 'sub-' + now;
         const newRecord = {
           id: newRecordId,
+          timestamp: now,
           studentPhone: currentStudent ? currentStudent.phone : '',
           studentName: currentStudent ? currentStudent.name : `Học sinh Khối ${studentGrade}`,
           grade: studentGrade,
@@ -1643,6 +1683,7 @@
           submittedAt: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) + ' - ' + new Date().toLocaleDateString('vi-VN')
         };
 
+        // Chèn bài nộp mới nhất lên đầu danh sách (ở trên cùng)
         setSubmissionHistory(prev => [newRecord, ...prev]);
         saveToCloud('history', newRecordId, newRecord);
         showToast(isAutoSubmit ? 'Hết giờ! Bài làm đã tự động nộp lên Cloud.' : 'Đã nộp bài lên Cloud thành công!', 'success');
@@ -1717,29 +1758,32 @@
 
               if (Array.isArray(importedData)) {
                 importedList = importedData;
-              } else if (importedData && importedData.title) {
+              } else if (importedData && (importedData.title || importedData.questions || importedData.part1)) {
                 importedList = [importedData];
               }
 
+              // Luôn sinh ID mới độc nhất (unique) để tránh việc bị trùng ID đè lên đề cũ trên Firebase Firestore
               const formattedList = importedList.map(q => ({
                 ...q,
-                id: q.id ? q.id : 'q' + (q.grade || '12') + '-' + Date.now() + Math.random().toString(36).substr(2, 4)
+                id: 'quiz-' + Date.now() + '-' + Math.random().toString(36).substring(2, 8)
               }));
 
               allImportedList.push(...formattedList);
-            } catch (err) {}
+            } catch (err) {
+              console.warn("Lỗi đọc file:", err);
+            }
 
             loadedCount++;
             if (loadedCount === files.length) {
               if (allImportedList.length > 0) {
                 setQuizzes(prev => {
-                  const existingIds = new Set(prev.map(p => p.id));
-                  const newQuizzes = allImportedList.filter(f => !existingIds.has(f.id));
-                  const updated = [...newQuizzes, ...prev];
-                  newQuizzes.forEach(q => saveToCloud('quizzes', q.id, q));
+                  // NỐI TIẾP VÀO DANH SÁCH CŨ (KHÔNG ĐÈ, KHÔNG XÓA ĐỀ CŨ)
+                  const updated = [...allImportedList, ...prev];
                   return updated;
                 });
-                showToast(`Đã tải lên & đồng bộ ${allImportedList.length} đề thi lên Cloud Firestore!`, 'success');
+                // Lưu từng đề mới lên Firebase Cloud
+                allImportedList.forEach(q => saveToCloud('quizzes', q.id, q));
+                showToast(`Đã thêm thành công ${allImportedList.length} đề thi mới vào danh sách (đề cũ được giữ nguyên)!`, 'success');
               } else {
                 showToast('Không tìm thấy file đề thi JSON hợp lệ.', 'info');
               }
@@ -1891,6 +1935,11 @@
                   onLogout={handleStudentLogout}
                   onRequestVip={handleRequestVip}
                   onUpdateProfile={handleUpdateStudentProfile}
+                  onPromptDeleteHistory={(record) => {
+                    setDeleteHistoryItem(record);
+                    setDeletePasswordInput('');
+                    setDeletePasswordError('');
+                  }}
                   quizzes={quizzes}
                   studentGrade={studentGrade}
                   setStudentGrade={setStudentGrade}
@@ -1914,6 +1963,73 @@
           <footer className="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-500">
             <p>© 2026 EduMath THPT - Cổng thông tin & Luyện tập Trắc nghiệm Toán Khối 10, 11, 12.</p>
           </footer>
+
+          {/* Modal Cảnh Báo Nhập Mật Khẩu Khi Xóa Kết Quả Làm Bài */}
+          {deleteHistoryItem && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4">
+              <div className="bg-white rounded-3xl border border-rose-200 shadow-2xl max-w-sm w-full overflow-hidden p-6 space-y-4 animate-in fade-in duration-150">
+                <div className="flex items-center space-x-3 text-rose-600">
+                  <div className="p-2.5 bg-rose-100 rounded-2xl">
+                    <Trash2 className="w-6 h-6 text-rose-600" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-base text-slate-900">Xác Nhận Xóa Bài Làm</h4>
+                    <p className="text-[11px] text-slate-500">Thao tác này sẽ trừ điểm bài thi khỏi ĐTB</p>
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs space-y-1">
+                  <p className="font-bold text-slate-800 line-clamp-1">{deleteHistoryItem.quizTitle}</p>
+                  <p className="text-slate-500">Điểm: <b className="text-indigo-600">{deleteHistoryItem.score}/10</b> • Thời gian: {deleteHistoryItem.submittedAt}</p>
+                </div>
+
+                <form onSubmit={handleConfirmDeleteHistory} className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
+                      <KeyRound className="w-3.5 h-3.5 text-rose-600" />
+                      Nhập lại mật khẩu của bạn để xác nhận xóa:
+                    </label>
+                    <input
+                      type="password"
+                      autoFocus
+                      required
+                      placeholder="Nhập mật khẩu tài khoản..."
+                      value={deletePasswordInput}
+                      onChange={(e) => {
+                        setDeletePasswordInput(e.target.value);
+                        setDeletePasswordError('');
+                      }}
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-rose-500"
+                    />
+                    {deletePasswordError && (
+                      <p className="text-[11px] font-bold text-rose-600 mt-1">{deletePasswordError}</p>
+                    )}
+                  </div>
+
+                  <div className="flex justify-end space-x-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDeleteHistoryItem(null);
+                        setDeletePasswordInput('');
+                        setDeletePasswordError('');
+                      }}
+                      className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition"
+                    >
+                      Hủy bỏ
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center gap-1"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Xóa Vĩnh Viễn</span>
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
 
           <TeacherAuthModal 
             isOpen={showTeacherModal} 
@@ -2211,8 +2327,8 @@
 
               <div className="bg-amber-50 p-3 rounded-xl border border-amber-200/70 text-[11px] text-amber-900 leading-relaxed">
                 🔑 <strong>Chỉ dành cho Giáo viên:</strong><br/>
-                • SĐT: <code className="font-mono bg-amber-100 px-1.5 py-0.5 rounded font-bold">**************</code><br/>
-                • Mật khẩu: <code className="font-mono bg-amber-100 px-1.5 py-0.5 rounded font-bold">*************</code>
+                • SĐT: <code className="font-mono bg-amber-100 px-1.5 py-0.5 rounded font-bold">*************</code><br/>
+                • Mật khẩu: <code className="font-mono bg-amber-100 px-1.5 py-0.5 rounded font-bold">***********</code>
               </div>
 
               <div className="flex items-center space-x-3 pt-2">
@@ -2265,6 +2381,45 @@
       const [editingStudent, setEditingStudent] = useState(null);
       const [newPasswordVal, setNewPasswordVal] = useState('');
       const [searchStudentQuery, setSearchStudentQuery] = useState('');
+
+      // State bảo mật thao tác Giáo viên: Sửa, Tải File, Xóa
+      const [actionVerifyModal, setActionVerifyModal] = useState(null);
+      const [actionPassInput, setActionPassInput] = useState('');
+      const [actionPassError, setActionPassError] = useState('');
+
+      const triggerProtectedAction = (actionType, quiz) => {
+        setActionVerifyModal({ actionType, quiz });
+        setActionPassInput('');
+        setActionPassError('');
+      };
+
+      const handleConfirmProtectedAction = (e) => {
+        e.preventDefault();
+        if (!actionVerifyModal) return;
+
+        if (actionPassInput.trim() !== '123456') {
+          setActionPassError('Mật khẩu không chính xác! Vui lòng nhập đúng mật khẩu 123456.');
+          return;
+        }
+
+        const { actionType, quiz } = actionVerifyModal;
+        setActionVerifyModal(null);
+        setActionPassInput('');
+        setActionPassError('');
+
+        if (actionType === 'edit') {
+          setEditingQuiz(quiz);
+          if (quiz.isCTM2025) {
+            setActiveTab('ctm');
+          } else {
+            setActiveTab('create');
+          }
+        } else if (actionType === 'export') {
+          onExportSingleQuiz(quiz);
+        } else if (actionType === 'delete') {
+          onDeleteQuiz(quiz.id);
+        }
+      };
 
       const [aiAnalysis, setAiAnalysis] = useState('');
       const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -2603,34 +2758,27 @@
 
                         <div className="flex items-center space-x-2">
                           <button
-                            onClick={() => {
-                              setEditingQuiz(quiz);
-                              if (quiz.isCTM2025) {
-                                setActiveTab('ctm');
-                              } else {
-                                setActiveTab('create');
-                              }
-                            }}
+                            onClick={() => triggerProtectedAction('edit', quiz)}
                             className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all flex items-center gap-1 text-xs font-semibold"
-                            title="Chỉnh sửa đề thi này"
+                            title="Chỉnh sửa đề thi này (Yêu cầu mật khẩu)"
                           >
                             <Edit3 className="w-4 h-4" />
                             <span className="hidden sm:inline">Sửa</span>
                           </button>
 
                           <button
-                            onClick={() => onExportSingleQuiz(quiz)}
+                            onClick={() => triggerProtectedAction('export', quiz)}
                             className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all flex items-center gap-1 text-xs font-semibold"
-                            title="Tải file .json của đề này về máy"
+                            title="Tải file .json của đề này về máy (Yêu cầu mật khẩu)"
                           >
                             <Download className="w-4 h-4" />
                             <span className="hidden sm:inline">Tải File</span>
                           </button>
 
                           <button
-                            onClick={() => onDeleteQuiz(quiz.id)}
+                            onClick={() => triggerProtectedAction('delete', quiz)}
                             className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
-                            title="Xóa đề thi"
+                            title="Xóa đề thi (Yêu cầu mật khẩu)"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -2640,6 +2788,81 @@
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Modal Nhập Mật Khẩu 123456 Để Xác Nhận Thao Tác Giáo Viên */}
+          {actionVerifyModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-sm w-full overflow-hidden p-6 space-y-4 animate-in fade-in zoom-in duration-150">
+                <div className="flex items-center space-x-3 text-amber-600">
+                  <div className="p-2.5 bg-amber-100 rounded-2xl">
+                    <Lock className="w-6 h-6 text-amber-600" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-base text-slate-900">
+                      Xác Nhận {actionVerifyModal.actionType === 'edit' ? 'Chỉnh Sửa Đề' : actionVerifyModal.actionType === 'export' ? 'Tải File Đề' : 'Xóa Đề Thi'}
+                    </h4>
+                    <p className="text-[11px] text-slate-500">Tránh thao tác nhầm lẫn trên hệ thống</p>
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs space-y-1">
+                  <p className="font-bold text-slate-800 line-clamp-1">{actionVerifyModal.quiz.title}</p>
+                  <p className="text-slate-500">Khối: <b>Khối {actionVerifyModal.quiz.grade}</b> • Loại: {actionVerifyModal.quiz.isCTM2025 ? 'CTM 2025' : 'Trắc nghiệm thường'}</p>
+                </div>
+
+                <form onSubmit={handleConfirmProtectedAction} className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
+                      <KeyRound className="w-3.5 h-3.5 text-amber-600" />
+                      Nhập mật khẩu xác nhận (******):
+                    </label>
+                    <input
+                      type="password"
+                      autoFocus
+                      required
+                      placeholder="Nhập MK..."
+                      value={actionPassInput}
+                      onChange={(e) => {
+                        setActionPassInput(e.target.value);
+                        setActionPassError('');
+                      }}
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                    {actionPassError && (
+                      <p className="text-[11px] font-bold text-rose-600 mt-1">{actionPassError}</p>
+                    )}
+                  </div>
+
+                  <div className="flex justify-end space-x-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActionVerifyModal(null);
+                        setActionPassInput('');
+                        setActionPassError('');
+                      }}
+                      className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition"
+                    >
+                      Hủy bỏ
+                    </button>
+                    <button
+                      type="submit"
+                      className={`px-4 py-2 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center gap-1 ${
+                        actionVerifyModal.actionType === 'delete'
+                          ? 'bg-rose-600 hover:bg-rose-700'
+                          : actionVerifyModal.actionType === 'export'
+                          ? 'bg-emerald-600 hover:bg-emerald-700'
+                          : 'bg-indigo-600 hover:bg-indigo-700'
+                      }`}
+                    >
+                      {actionVerifyModal.actionType === 'delete' ? <Trash2 className="w-3.5 h-3.5" /> : actionVerifyModal.actionType === 'export' ? <Download className="w-3.5 h-3.5" /> : <Edit3 className="w-3.5 h-3.5" />}
+                      <span>Xác Nhận Thực Hiện</span>
+                    </button>
+                  </div>
+                </form>
+              </div>
             </div>
           )}
 
@@ -2863,7 +3086,7 @@
               <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                   <h3 className="font-bold text-slate-900 text-base">Danh Sách Học Sinh Đã Nộp Bài</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Theo dõi thời gian, số câu đúng và điểm số thực tế của học sinh</p>
+                  <p className="text-xs text-slate-500 mt-0.5">Theo dõi thời gian, số câu đúng và điểm số thực tế của học sinh (bài mới nhất xếp trên đầu)</p>
                 </div>
                 
                 <div className="flex items-center space-x-2">
@@ -2912,7 +3135,13 @@
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {submissionHistory.map((sub) => (
+                    {[...submissionHistory]
+                      .sort((a, b) => {
+                        const timeA = a.timestamp || (a.id ? parseInt(a.id.replace('sub-', '')) : 0) || 0;
+                        const timeB = b.timestamp || (b.id ? parseInt(b.id.replace('sub-', '')) : 0) || 0;
+                        return timeB - timeA;
+                      })
+                      .map((sub) => (
                       <tr key={sub.id} className="hover:bg-slate-50 transition-all">
                         <td className="px-5 py-4 font-bold text-slate-900">{sub.studentName}</td>
                         <td className="px-5 py-4">
@@ -2954,6 +3183,7 @@
       onLogout,
       onRequestVip,
       onUpdateProfile,
+      onPromptDeleteHistory,
       quizzes, 
       studentGrade, 
       setStudentGrade, 
@@ -3217,7 +3447,7 @@
                   className="flex items-center justify-center space-x-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold shadow-md transition-all animate-pulse"
                 >
                   <Award className="w-4 h-4" />
-                  <span>Điều khoản Nâng Cấp </span>
+                  <span>Điều khoản Nâng Cấp</span>
                 </button>
               )}
 
@@ -3291,25 +3521,27 @@
                 </span>
               </h3>
 
-              <div className="relative w-full sm:w-72">
-                <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                  <Search className="w-4 h-4" />
-                </span>
-                <input
-                  type="text"
-                  value={searchQuizQuery}
-                  onChange={(e) => setSearchQuizQuery(e.target.value)}
-                  placeholder="Tìm đề thi, chuyên đề..."
-                  className="w-full bg-white border border-slate-300 rounded-xl pl-9 pr-8 py-2 text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs"
-                />
-                {searchQuizQuery && (
-                  <button
-                    onClick={() => setSearchQuizQuery('')}
-                    className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-600"
-                  >
-                    <XCircle className="w-3.5 h-3.5" />
-                  </button>
-                )}
+              <div className="flex items-center space-x-2 flex-wrap gap-2">
+                <div className="relative w-full sm:w-64">
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <Search className="w-4 h-4" />
+                  </span>
+                  <input
+                    type="text"
+                    value={searchQuizQuery}
+                    onChange={(e) => setSearchQuizQuery(e.target.value)}
+                    placeholder="Tìm đề thi, chuyên đề..."
+                    className="w-full bg-white border border-slate-300 rounded-xl pl-9 pr-8 py-2 text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs"
+                  />
+                  {searchQuizQuery && (
+                    <button
+                      onClick={() => setSearchQuizQuery('')}
+                      className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-600"
+                    >
+                      <XCircle className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -3651,20 +3883,20 @@
                     </div>
                   ) : (
                     studentHistory.map((rec, idx) => (
-                      <div key={rec.id || idx} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between gap-4">
-                        <div className="space-y-1">
+                      <div key={rec.id || idx} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between gap-3">
+                        <div className="space-y-1 flex-1 min-w-0">
                           <span className="bg-indigo-50 text-indigo-700 text-[10px] font-bold px-2 py-0.5 rounded-md">
                             Khối {rec.grade}
                           </span>
-                          <h4 className="font-bold text-slate-900 text-sm leading-snug">{rec.quizTitle}</h4>
-                          <div className="text-xs text-slate-500 flex items-center gap-3">
+                          <h4 className="font-bold text-slate-900 text-sm leading-snug truncate">{rec.quizTitle}</h4>
+                          <div className="text-xs text-slate-500 flex items-center gap-3 flex-wrap">
                             <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> {rec.submittedAt}</span>
                             <span>•</span>
                             <span>Số câu đúng: <strong>{rec.correctCount}/{rec.totalQuestions}</strong></span>
                           </div>
                         </div>
 
-                        <div className="text-right shrink-0">
+                        <div className="flex items-center space-x-2 shrink-0">
                           <span className={`font-extrabold px-3 py-1.5 rounded-xl text-sm block ${
                             rec.score >= 8 
                               ? 'bg-emerald-100 text-emerald-800' 
@@ -3674,6 +3906,15 @@
                           }`}>
                             {rec.score} / 10
                           </span>
+
+                          <button
+                            type="button"
+                            onClick={() => onPromptDeleteHistory && onPromptDeleteHistory(rec)}
+                            className="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition"
+                            title="Xóa kết quả bài làm này"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </div>
                       </div>
                     ))
@@ -3737,7 +3978,7 @@
                     }}
                     className="flex-[2] px-4 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-xl text-xs font-bold shadow-md transition-all flex items-center justify-center gap-2"
                   >
-                    <Sparkles className="w-4 h-4" /> Nâng cấp ngay
+                    <Sparkles className="w-4 h-4" /> Xem hướng dẫn
                   </button>
                 </div>
               </div>
@@ -3821,6 +4062,7 @@
       const [viewMode, setViewMode] = useState('single');
       const [currentQIndex, setCurrentQIndex] = useState(0);
       const [showTitleBar, setShowTitleBar] = useState(true);
+      const [showConfirmSubmitModal, setShowConfirmSubmitModal] = useState(false);
 
       const flatQuestions = useMemo(() => {
         const flat = [];
@@ -3840,6 +4082,10 @@
         if (item.part === 3) return userAnswers[`p3_${item.localIndex}`] !== undefined && userAnswers[`p3_${item.localIndex}`] !== '';
         return false;
       };
+
+      const answeredCount = useMemo(() => {
+        return flatQuestions.filter(item => isQuestionAnswered(item)).length;
+      }, [flatQuestions, userAnswers]);
 
       const isQuestionCorrect = (item) => {
         if (!quizSubmitted) return false;
@@ -3885,6 +4131,60 @@
 
       return (
         <div className="space-y-4 max-w-5xl mx-auto pb-12">
+          {/* Modal Hỏi Xác Nhận Nộp Bài */}
+          {showConfirmSubmitModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full overflow-hidden p-6 space-y-4">
+                <div className="flex items-center space-x-3 text-indigo-700">
+                  <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center">
+                    <Send className="w-6 h-6 text-indigo-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">Xác Nhận Nộp Bài Thi</h3>
+                    <p className="text-xs text-slate-500">Kiểm tra lại bài làm trước khi nộp điểm</p>
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-600">Đã hoàn thành:</span>
+                    <span className="font-bold text-emerald-600 text-sm">{answeredCount} / {flatQuestions.length} câu</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-600">Thời gian còn lại:</span>
+                    <span className="font-bold text-indigo-700 font-mono">{formatTime(timeLeft)}</span>
+                  </div>
+                  {answeredCount < flatQuestions.length && (
+                    <p className="text-amber-700 font-semibold pt-1 border-t border-slate-200 text-[11px]">
+                      ⚠️ Bạn vẫn còn {flatQuestions.length - answeredCount} câu chưa trả lời. Bạn có chắc chắn muốn nộp bài?
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex items-center space-x-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmSubmitModal(false)}
+                    className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition"
+                  >
+                    Làm tiếp bài này
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowConfirmSubmitModal(false);
+                      handleFinishQuiz(false);
+                    }}
+                    className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md transition flex items-center justify-center gap-1.5"
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    <span>Nộp Bài Ngay</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Thanh Điều Khiển Nổi Cố Định - Siêu Gọn, Không Che Khuất */}
           <div className="sticky top-2 z-30 bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200/90 shadow-md p-2.5 sm:px-4 transition-all duration-200">
             <div className="flex items-center justify-between gap-2">
@@ -3953,7 +4253,7 @@
                 {!quizSubmitted && (
                   <button
                     type="button"
-                    onClick={() => handleFinishQuiz(false)}
+                    onClick={() => setShowConfirmSubmitModal(true)}
                     className="px-3 sm:px-4 py-1.5 sm:py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md transition-all flex items-center gap-1.5"
                   >
                     <Send className="w-3.5 h-3.5" />
@@ -3977,11 +4277,14 @@
                   <p className="text-xs text-emerald-100 mt-1">
                     Số điểm thành phần đã đạt: <strong>{scoreResult.correctCount} / {scoreResult.totalQuestions} phần</strong>
                   </p>
+                  <div className="mt-2.5 bg-emerald-800/40 border border-emerald-400/30 px-3 py-1.5 rounded-xl text-xs font-medium text-emerald-100">
+                    💡 <b>Bạn muốn làm gì tiếp theo?</b> Bạn có thể chọn thi tiếp đề mới hoặc thoát về danh sách đề.
+                  </div>
                 </div>
               </div>
 
-              <div className="flex flex-col sm:flex-row items-center gap-3">
-                <div className="text-center md:text-right bg-white/10 p-3 px-6 rounded-2xl border border-white/20">
+              <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+                <div className="text-center md:text-right bg-white/10 p-3 px-6 rounded-2xl border border-white/20 w-full sm:w-auto">
                   <span className="text-xs font-medium uppercase tracking-wider text-emerald-100 block">Tổng Điểm</span>
                   <span className="text-3xl font-extrabold text-yellow-300">{scoreResult.score} / 10</span>
                 </div>
@@ -3990,12 +4293,14 @@
                     type="button"
                     onClick={() => {
                       const baseQuiz = quiz.originalSourceQuiz || quiz;
+                      setCurrentQIndex(0);
                       startQuiz(baseQuiz, true);
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
                     }}
                     className="px-4 py-2.5 bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-500 hover:to-yellow-600 text-slate-900 rounded-xl text-xs font-extrabold shadow-md transition flex items-center justify-center gap-1.5"
                   >
                     <Shuffle className="w-4 h-4" />
-                    <span>Làm lại (Làm đề xáo)</span>
+                    <span>🎯 Thi Tiếp (Đề xáo mới)</span>
                   </button>
                   <button
                     type="button"
@@ -4478,7 +4783,7 @@
                         </button>
                       ) : !quizSubmitted ? (
                         <button
-                          onClick={() => handleFinishQuiz(false)}
+                          onClick={() => setShowConfirmSubmitModal(true)}
                           className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold shadow-md transition"
                         >
                           Nộp Bài Thi
@@ -4576,7 +4881,12 @@
 
       const [isPlayingAudio, setIsPlayingAudio] = useState(false);
       const [showTitleBar, setShowTitleBar] = useState(true);
+      const [showConfirmSubmitModal, setShowConfirmSubmitModal] = useState(false);
       const audioRef = useRef(null);
+
+      const answeredCount = useMemo(() => {
+        return (quiz.questions || []).filter(q => userAnswers[q.id] !== undefined).length;
+      }, [quiz.questions, userAnswers]);
 
       const formatTime = (seconds) => {
         const mins = Math.floor(seconds / 60);
@@ -4618,6 +4928,60 @@
       return (
         <div className="space-y-4">
           <audio ref={audioRef} onEnded={() => setIsPlayingAudio(false)} className="hidden" />
+
+          {/* Modal Hỏi Xác Nhận Nộp Bài */}
+          {showConfirmSubmitModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full overflow-hidden p-6 space-y-4">
+                <div className="flex items-center space-x-3 text-indigo-700">
+                  <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center">
+                    <Send className="w-6 h-6 text-indigo-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">Xác Nhận Nộp Bài Thi</h3>
+                    <p className="text-xs text-slate-500">Kiểm tra lại số câu đã làm trước khi nộp</p>
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-600">Đã trả lời:</span>
+                    <span className="font-bold text-emerald-600 text-sm">{answeredCount} / {quiz.questions.length} câu</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-600">Thời gian còn lại:</span>
+                    <span className="font-bold text-indigo-700 font-mono">{formatTime(timeLeft)}</span>
+                  </div>
+                  {answeredCount < quiz.questions.length && (
+                    <p className="text-amber-700 font-semibold pt-1 border-t border-slate-200 text-[11px]">
+                      ⚠️ Bạn vẫn còn {quiz.questions.length - answeredCount} câu chưa chọn đáp án. Bạn có muốn nộp bài ngay không?
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex items-center space-x-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmSubmitModal(false)}
+                    className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition"
+                  >
+                    Làm tiếp bài này
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowConfirmSubmitModal(false);
+                      handleFinishQuiz(false);
+                    }}
+                    className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md transition flex items-center justify-center gap-1.5"
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    <span>Nộp Bài Ngay</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Thanh Điều Khiển Nổi Cố Định - Siêu Gọn, Tuyệt Đối Không Che Đề */}
           <div className="sticky top-2 z-30 bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200/90 shadow-md p-2.5 sm:px-4 transition-all duration-200">
@@ -4687,7 +5051,7 @@
                 {!quizSubmitted && (
                   <button
                     type="button"
-                    onClick={() => handleFinishQuiz(false)}
+                    onClick={() => setShowConfirmSubmitModal(true)}
                     className="px-3 sm:px-4 py-1.5 sm:py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md transition-all flex items-center gap-1.5"
                   >
                     <Send className="w-3.5 h-3.5" />
@@ -4720,6 +5084,9 @@
                         Kết quả bài làm của bạn: <span className="text-yellow-300 font-bold underline underline-offset-4">{currentStudent?.name || `Học sinh Khối ${quiz.grade}`}</span> là <span className="text-yellow-300 font-extrabold text-base">{scoreResult.score}</span> điểm
                         <span className="hidden sm:inline"> (Làm đúng <strong>{scoreResult.correctCount} / {scoreResult.totalQuestions} câu</strong>)</span>
                       </p>
+                      <div className="mt-2.5 bg-white/10 border border-white/20 px-3 py-1.5 rounded-xl text-xs text-blue-100 font-medium inline-block">
+                        👉 <b>Bạn muốn thi tiếp không hay thoát?</b> Hãy chọn một trong các nút bên cạnh:
+                      </div>
                     </div>
                   </div>
 
@@ -4734,33 +5101,23 @@
                         type="button"
                         onClick={() => {
                           const baseQuiz = quiz.originalSourceQuiz || quiz;
+                          setCurrentQIndex(0);
                           startQuiz(baseQuiz, true);
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
                         }}
                         className="px-4 py-2.5 bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-500 hover:to-yellow-600 text-slate-900 rounded-xl text-xs font-extrabold shadow-md transition flex items-center justify-center gap-1.5"
                       >
                         <Shuffle className="w-4 h-4" />
-                        <span>Làm đề xáo mới</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const baseQuiz = quiz.originalSourceQuiz || quiz;
-                          startQuiz(baseQuiz, false);
-                        }}
-                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm"
-                        title="Làm lại chính đề này"
-                      >
-                        <RefreshCw className="w-4 h-4" />
-                        <span>Thoát về đề đang làm</span>
+                        <span>🎯 Thi Tiếp (Đề xáo mới)</span>
                       </button>
                       <button
                         type="button"
                         onClick={exitQuiz}
-                        className="px-4 py-1.5 bg-white/20 hover:bg-white/30 text-white border border-white/40 rounded-xl text-xs font-medium transition flex items-center justify-center gap-1.5"
-                        title="Về danh sách tất cả các đề"
+                        className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white border border-white/40 rounded-xl text-xs font-medium transition flex items-center justify-center gap-1.5"
+                        title="Thoát về danh sách đề"
                       >
                         <ArrowLeft className="w-4 h-4" />
-                        <span>Về danh sách đề</span>
+                        <span>Thoát về danh sách đề</span>
                       </button>
                     </div>
                   </div>
@@ -4918,7 +5275,7 @@
                   </button>
                 ) : !quizSubmitted ? (
                   <button
-                    onClick={() => handleFinishQuiz(false)}
+                    onClick={() => setShowConfirmSubmitModal(true)}
                     className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm"
                   >
                     Nộp Bài Thi
@@ -5845,6 +6202,105 @@ ${pdfText}
                         <p className="text-[11px] text-slate-600">
                           Thầy/cô có thể tick chọn <b>"Cố định ý a,b,c,d"</b> trực tiếp trên từng câu riêng biệt ở Phần II bên phải. Câu nào cần kế thừa suy luận thì cố định, câu nào độc lập thì cho phép xáo!
                         </p>
+                    </div>
+
+                    {/* Khối Thao Tác JSON cho Đề CTM */}
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-800 flex items-center gap-1">
+                          <Database className="w-3.5 h-3.5 text-emerald-600" /> Nạp đề từ file JSON CTM
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const sampleCTM = {
+                              grade: "12",
+                              title: "ĐỀ THI TOÁN THPT CẤU TRÚC MỚI (MẪU JSON)",
+                              duration: 90,
+                              part1: [
+                                {
+                                  question: "Cho hàm số $y = \\frac{2x - 1}{x + 1}$. Tiệm cận đứng của đồ thị là:",
+                                  options: ["$x = -1$", "$x = 2$", "$y = 2$", "$y = -1$"],
+                                  correctAnswer: "A"
+                                },
+                                {
+                                  question: "Tính tích phân $I = \\int_{0}^{1} 2x dx$.",
+                                  options: ["$I = 1$", "$I = 2$", "$I = 0$", "$I = 4$"],
+                                  correctAnswer: "A"
+                                }
+                              ],
+                              part2: [
+                                {
+                                  question: "Cho hàm số $y = x^3 - 3x$. Xét tính đúng sai của các khẳng định sau:",
+                                  keepStatements: false,
+                                  statements: [
+                                    { label: "a", text: "Đạo hàm $y' = 3x^2 - 3$.", isTrue: true },
+                                    { label: "b", text: "Hàm số đồng biến trên $(-1; 1)$.", isTrue: false },
+                                    { label: "c", text: "Hàm số đạt cực đại tại $x = -1$.", isTrue: true },
+                                    { label: "d", text: "Điểm cực tiểu là $(1; -2)$.", isTrue: true }
+                                  ]
+                                }
+                              ],
+                              part3: [
+                                {
+                                  question: "Tìm giá trị nhỏ nhất của hàm số $y = x^2 - 4x + 7$ trên $\\mathbb{R}$.",
+                                  correctAnswer: "3"
+                                }
+                              ]
+                            };
+                            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(sampleCTM, null, 2));
+                            const a = document.createElement('a');
+                            a.href = dataStr;
+                            a.download = "De_CTM_Mau_EduMath.json";
+                            document.body.appendChild(a);
+                            a.click();
+                            a.remove();
+                            if (showToast) showToast('Đã tải file mẫu JSON cấu trúc mới CTM!', 'success');
+                          }}
+                          className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold underline cursor-pointer"
+                        >
+                          Tải file mẫu
+                        </button>
+                      </div>
+
+                      <label className="w-full flex items-center justify-center gap-1.5 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold cursor-pointer transition shadow-xs">
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>Nạp & Cộng Dồn Thêm Câu Hỏi (JSON CTM)</span>
+                        <input
+                          type="file"
+                          accept=".json"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const reader = new FileReader();
+                            reader.onload = (event) => {
+                              try {
+                                const parsed = JSON.parse(event.target.result);
+                                if (parsed.part1 || parsed.part2 || parsed.part3) {
+                                  // NỐI THÊM CÂU HỎI VÀO CÁC PHẦN ĐANG CÓ THAY VÌ GHI ĐÈ LÀM MẤT CÂU CŨ
+                                  setExamData(prev => ({
+                                    part1: [...prev.part1, ...(Array.isArray(parsed.part1) ? parsed.part1 : [])],
+                                    part2: [...prev.part2, ...(Array.isArray(parsed.part2) ? parsed.part2 : [])],
+                                    part3: [...prev.part3, ...(Array.isArray(parsed.part3) ? parsed.part3 : [])]
+                                  }));
+                                  if (!title && parsed.title) setTitle(parsed.title);
+                                  if (parsed.grade) setGrade(parsed.grade);
+                                  if (parsed.duration) setDuration(parsed.duration);
+                                  const totalAdded = (parsed.part1?.length || 0) + (parsed.part2?.length || 0) + (parsed.part3?.length || 0);
+                                  if (showToast) showToast(`Đã cộng dồn thêm ${totalAdded} câu hỏi mới vào đề hiện tại (các câu cũ được bảo toàn)!`, 'success');
+                                } else {
+                                  if (showToast) showToast('File JSON không đúng cấu trúc 3 phần CTM (part1, part2, part3).', 'info');
+                                }
+                              } catch (err) {
+                                if (showToast) showToast('Lỗi cú pháp file JSON!', 'info');
+                              }
+                              e.target.value = '';
+                            };
+                            reader.readAsText(file);
+                          }}
+                        />
+                      </label>
                     </div>
 
                     <button 
